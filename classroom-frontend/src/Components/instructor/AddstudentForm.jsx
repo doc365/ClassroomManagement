@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {Plus, X} from 'lucide-react';
 import { api } from '../../api';
 
@@ -38,7 +38,7 @@ export default function AddStudentForm({onStudentAdded, onClose}) {
     };
 
     return (
-        <div className='bg-white p-6 rounded-lg shadow-lg max-w-md mx-auto'>
+        <div className='bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto'>
             <div className='flex justify-between items-center mb-4'>
                 <h2 className='text-xl font-bold text-gray-800'>Add New Student</h2>
             {onClose && (

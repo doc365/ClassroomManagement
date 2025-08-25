@@ -15,7 +15,7 @@ export default function AssignLessonModal({ students, onAssign, onClose }) {
         try {
             const response = await api.assignLesson(formData);
             if (response.success) {
-                onAssign();
+                onAssign?.();
                 onClose();
             } else {
                 alert("Failed to assign lesson.");

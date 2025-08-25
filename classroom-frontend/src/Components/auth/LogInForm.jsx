@@ -3,8 +3,8 @@ import { ArrowLeft, Mail, Phone } from 'lucide-react';
 
 export default function SignInForm({ onSignInSuccess }) {
   const [accessCode, setAccessCode] = useState('');
-  const [activeTab, setActiveTab] = useState('phone');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [activeTab, setActiveTab] = useState('email');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,7 +17,7 @@ export default function SignInForm({ onSignInSuccess }) {
     try {
       const endpoint = activeTab === 'phone' ? 'http://localhost:3000/createAccessCode' : 'http://localhost:3000/loginEmail';
       const payload = activeTab === 'phone'
-        ? { phoneNumber: phoneNumber.trim() }
+        ? { phone: phone.trim() }
         : { email: email.trim() };
       
       const response = await fetch(endpoint, {
@@ -56,7 +56,7 @@ export default function SignInForm({ onSignInSuccess }) {
         },
         body: JSON.stringify({
           accessCode: accessCode.trim(),
-          [activeTab]: activeTab === 'phone' ? phoneNumber.trim() : email.trim()
+          [activeTab]: activeTab === 'phone' ? phone.trim() : email.trim()
         })
       });
 
@@ -64,7 +64,11 @@ export default function SignInForm({ onSignInSuccess }) {
       
       if (result.success) {
         if (onSignInSuccess) {
-          onSignInSuccess(result);
+          onSignInSuccess({
+            email:result.email || email.trim(),
+            phone:result.phone || phone.trim(),
+            name: result.name || 'Instructor',
+          });
         }
       } else {
         setError(result.error || 'Invalid verification code');
@@ -91,7 +95,7 @@ export default function SignInForm({ onSignInSuccess }) {
     console.log('Sign up clicked');
   };
 
-  const isStep1Valid = activeTab === 'phone' ? phoneNumber.trim() !== '' : email.trim() !== '';
+  const isStep1Valid = activeTab === 'phone' ? phone.trim() !== '' : email.trim() !== '';
   const isStep2Valid = accessCode.trim().length >= 6;
 
   return (
@@ -155,8 +159,8 @@ export default function SignInForm({ onSignInSuccess }) {
                 activeTab === 'phone' ? (
                   <input
                     type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     placeholder="Your Phone Number"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-gray-900 placeholder-gray-400"
                   />
