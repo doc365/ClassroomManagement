@@ -67,3 +67,37 @@ classroom-management/
 │ └── ...
 │
 └── README.md # Project documentation
+
+
+---
+
+## 📧 Email Setup (Gmail App Password)
+
+This project uses **Nodemailer + Gmail** to send verification emails.  
+Because of Google’s security, you can’t use your normal Gmail password.  
+Instead, you need to create a **16-digit App Password**.
+
+### 🔹 Step 1: Enable 2-Step Verification
+1. Open [Google My Account → Security](https://myaccount.google.com/security).  
+2. Under **“Signing in to Google”**, turn on **2-Step Verification**.  
+
+---
+
+### 🔹 Step 2: Create an App Password
+1. Go to [Google App Passwords](https://myaccount.google.com/apppasswords).  
+2. Log in again if needed.  
+3. At the bottom, select:  
+   - **App** → choose **Mail**  
+   - **Device** → choose **Other (Custom name)** → type `ClassroomApp`  
+4. Click **Generate**.  
+5. Copy the **16-digit App Password** (looks like `abcd efgh ijkl mnop`).  
+
+---
+
+### 🔹 Step 3: Add to `.env`
+Create or edit your `.env` file in the project root:
+
+```env
+EMAIL_USER=yourgmail@gmail.com
+EMAIL_PASS=your-16-digit-app-password
+
