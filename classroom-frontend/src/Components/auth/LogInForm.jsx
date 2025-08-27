@@ -1,43 +1,111 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Lock } from 'lucide-react';
 
 export default function SignInForm({ onSignInSuccess }) {
   const [accessCode, setAccessCode] = useState('');
   const [activeTab, setActiveTab] = useState('email');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [showCodeInput, setShowCodeInput] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState(1);
+  const [userType, setUserType] = useState(null);
+  
 
-  const handleSubmit = async () => {
+  const checkUserTypeAndSignIn = async () => {
     setIsLoading(true);
     setError('');
 
-    try {
-      const endpoint = activeTab === 'phone' ? 'http://localhost:3000/createAccessCode' : 'http://localhost:3000/loginEmail';
-      const payload = activeTab === 'phone'
-        ? { phone: phone.trim() }
-        : { email: email.trim() };
-      
-      const response = await fetch(endpoint, {
+    try{
+      const identifier = activeTab === 'phone' ? phone.trim() : email.trim();
+
+      let userExists = false;
+      let detectedUserType = null;
+
+    if (activeTab === 'email'){
+      const checkResponse = await fetch('http://localhost:3000/checkUserByEmail', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ email: identifier })
+      });
+
+      if (checkResponse.ok) {
+        const result = await checkResponse.json();
+        userExists = result.exists;
+        detectedUserType = result.userType;
+      } else{
+        throw new Error('failed to check user');
+      }
+    } else {
+      const checkResponse = await fetch('http://localhost:3000/checkUserByPhone', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ phone: identifier })
+      });
+
+      if (checkResponse.ok) {
+        const result = await checkResponse.json();
+        userExists = result.exists;
+        detectedUserType = result.userType;
+      }else{
+        throw new Error('Failed to check user')
+      }
+    
+    } 
+    setUserType(detectedUserType);
+
+    if(!userExists){
+      setError('Account not found, please check your information or sign up');
+      return;
+    }
+
+    if (detectedUserType === 'instructor'){
+
+      const response = await fetch('http://localhost:3000/loginEmail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: activeTab === 'email' ? identifier: email.trim() })
+      })
+
+      const result = await response.json();
+      if (result.success) {
+        setShowCodeInput(true)
+      } else {
+        setError(result.error || 'failed to send access code. Please try again.')
+      }
+    } else if( detectedUserType === 'student') {
+      if (activeTab === 'phone'){
+        setShowPasswordInput(true);
+    } else{
+      const response = await fetch('http://localhost:3000/createAccessCode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({phone: identifier})
       });
 
       const result = await response.json();
-      
-      if (result.success) {
-        setStep(2);
+
+      if(result.success) {
+        setUserType('instructor');
+        setShowCodeInput(true);
       } else {
-        setError(result.error || 'Failed to send code');
+        setError(result.error || 'Failed to send access code. Please try again.');
       }
+    }
+  }
     } catch (error) {
-      console.error('Error sending code:', error);
-      setError('Failed to send code. Please try again.');
+      console.error('Error checking user type:', error);
+      setError('Failed to check user type. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +116,7 @@ export default function SignInForm({ onSignInSuccess }) {
     setError('');
 
     try {
-      const endpoint = activeTab === 'phone' ? 'http://localhost:3000/verifyCode' : 'http://localhost:3000/validateEmailCode';
+      const endpoint = activeTab === 'phone' ? 'http://localhost:3000/validateAccessCode' : 'http://localhost:3000/validateEmailCode';
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -81,13 +149,54 @@ export default function SignInForm({ onSignInSuccess }) {
     }
   };
 
-  const handleBack = () => {
-    if (step === 2) {
-      setStep(1);
-      setAccessCode('');
-      setError('');
+  const handlePasswordLogin = async () => {
+    setIsLoading(true);
+    setError('');
+
+    try{
+      const response = await fetch('http://localhost:3000/loginStudent',{
+        method: 'POST',
+        headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        phone: phone.trim(),
+        password: password.trim()
+      })
+    });
+    const result = await response.json();
+
+    if (result.success){
+      if(onSignInSuccess){
+        onSignInSuccess({
+          email: email.trim(),
+          phone: phone.trim(),
+          name: "Student",
+          userType: 'student'
+        });
+      }
     } else {
-      console.log('Back button clicked - navigate to previous page');
+      setError(result.error || 'invalid password');
+    }
+  } catch (error){
+    console.error('error logging in: ', error);
+    setError('failed to login. Please try again')
+  }finally{
+    setIsLoading(false)
+  }
+};
+  
+
+  const handleBack = () => {
+    if (showCodeInput || showPasswordInput){
+      setShowCodeInput(false);
+      setShowPasswordInput(false);
+      setAccessCode('');
+      setPassword('');
+      setError('');
+      setUserType(null);
+    }else{
+      console.log('back button clicked- naviagte to previous page')
     }
   };
 
@@ -95,8 +204,39 @@ export default function SignInForm({ onSignInSuccess }) {
     console.log('Sign up clicked');
   };
 
-  const isStep1Valid = activeTab === 'phone' ? phone.trim() !== '' : email.trim() !== '';
-  const isStep2Valid = accessCode.trim().length >= 6;
+  const isFormValid = () => {
+    const identifierValid = activeTab ==='phone' ? phone.trim() !== '' : email.trim() !== '';
+
+    if (showCodeInput) {
+      return accessCode.trim().length >= 6;
+    } else if (showPasswordInput) {
+      return identifierValid && password.trim().length >=6;
+    }else {
+      return identifierValid;
+    }
+  };
+
+  const getButtonText = () => {
+    if(isLoading){
+      if(showCodeInput) return 'Verifying...';
+      if (showPasswordInput) return 'Signing in...';
+      return 'Checking...'
+    }
+
+    if(showCodeInput) return 'Verify Code';
+    if(showPasswordInput) return 'Sign In';
+    return 'Sign In';
+  };
+
+  const handleSubmit = () => {
+    if (showCodeInput) {
+      handleVerifyCode();
+    } else if (showPasswordInput){
+      handlePasswordLogin();
+    } else {
+      checkUserTypeAndSignIn();
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -117,14 +257,16 @@ export default function SignInForm({ onSignInSuccess }) {
           </h1>
           
           <p className="text-gray-500 text-center mb-8">
-            {step === 1 
-              ? `Please enter your ${activeTab} to sign in`
-              : `Enter the verification code sent to your ${activeTab}`
+            {showCodeInput
+              ? `Enter the verification code sent to your ${activeTab}`
+              :showPasswordInput
+              ? 'Enter your password to sign in'
+              : `Please enter your ${activeTab} to sign in`
             }
           </p>
 
 
-          {step === 1 && (
+          {!showCodeInput && !showPasswordInput && (
             <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
               <button
                 onClick={() => setActiveTab('email')}
@@ -152,39 +294,59 @@ export default function SignInForm({ onSignInSuccess }) {
           )}
 
           <div className="space-y-6">
-
-            <div>
-              {step === 1 ? (
-
-                activeTab === 'phone' ? (
-                  <input
+            <div className='space-y-4'>
+              {!showCodeInput &&(
+                <div>
+                  {activeTab === 'phone' ? (
+                    <input 
                     type="tel"
-                    value={phone}
+                    value = {phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Your Phone Number"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-gray-900 placeholder-gray-400"
-                  />
-                ) : (
-                  <input
+                    placeholder = "your Phone Number"
+                    className='w-full px-4 py-3 border border-gray-300
+                    rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors
+                    text-gray-900 placeholder-gray-400' />
+                  ) :(
+                    <input 
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Your Email Address"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-gray-900 placeholder-gray-400"
-                  />
-                )
-              ) : (
+                    value = {email}
+                    onChange={(e) =>setEmail(e.target.value)}
+                    placeholder = "your Email Number"
+                    className='w-full px-4 py-3 border border-gray-300
+                    rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors
+                    text-gray-900 placeholder-gray-400' />
+                  )}
+                  </div>
+                )}
+                {showPasswordInput && (
+                  <div className='relative'>
+                    <Lock className='absolute left-3 top-3.5 h-5 w-5 text-gray-400'/>
+                    <input 
+                    type="password"
+                    value = {password}
+                    onChange = {(e) => setPassword(e.target.value)}
+                    placeholder='enter your password'
+                    className='w-full px-4 py-3 border border-gray-300
+                    rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors
+                    text-gray-900 placeholder-gray-400'/>
+                    </div>
+                )}
 
-                <input
-                  type="text"
-                  value={accessCode}
-                  onChange={(e) => setAccessCode(e.target.value)}
-                  placeholder="Enter 6-digit verification code"
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors text-gray-900 placeholder-gray-400 text-center text-xl tracking-widest"
-                />
+                {showCodeInput && (
+                  <div className='relative'>
+                    <Lock className='absolute left-3 top-3.5 h-5 w-5 text-gray-400'/>
+                    <input
+                    type="Code"
+                    value = {accessCode}
+                    onChange = {(e) => setAccessCode(e.target.value)}
+                    placeholder='enter your password'
+                    className='w-full px-4 py-3 border border-gray-300
+                    rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors
+                    text-gray-900 placeholder-gray-400'/>
+                </div>
               )}
             </div>
+            
 
             {error && (
               <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg">
@@ -193,26 +355,25 @@ export default function SignInForm({ onSignInSuccess }) {
             )}
 
             <button
-              onClick={step === 1 ? handleSubmit : handleVerifyCode}
-              disabled={step === 1 ? (!isStep1Valid || isLoading) : (!isStep2Valid || isLoading)}
+              onClick={handleSubmit}
+              disabled={!isFormValid() || isLoading}
               className={`w-full font-medium py-3 px-4 rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 outline-none ${
-                (step === 1 ? (!isStep1Valid || isLoading) : (!isStep2Valid || isLoading))
+                (!isFormValid() || isLoading)
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {isLoading 
-                ? (step === 1 ? 'Sending...' : 'Verifying...') 
-                : (step === 1 ? 'Send Code' : 'Sign In')
-              }
+               
+                {getButtonText()}
+
             </button>
 
             <p className="text-center text-sm text-gray-500">
-              Passwordless authentication methods
+              {userType === 'student' ? 'Student login with password' : 'Passwordless authentication methods'}
             </p>
           </div>
 
-          {step === 1 && (
+          {!showCodeInput && !showPasswordInput && (
             <div className="mt-8 text-center">
               <span className="text-gray-600">Don't have an account? </span>
               <button

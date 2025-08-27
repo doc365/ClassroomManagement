@@ -239,6 +239,57 @@ app.post('/validateInvitation', async (req, res) => {
     }
 });
 
+app.post ('/checkUseByEmail', async (req, res) => {
+    const { email } = req.body;
+    if(!email) {
+        return res.status(400).json({error: 'Email is required'});
+    }
+    try {
+        const userQuery = await db.collection ('users').where('email','==', email).get();
+
+        if(userQuery.empty){
+            return res.json({ exists: false, userType: null})
+        }
+
+        const userDoc = userQuery.docs[0];
+        const userData = userDoc.data();
+
+        res.json({
+            exists: true,
+            userType: userData.role,
+            phone: userDoc.id
+        });
+    } catch (error){
+        console.error('Error checking user by email: ', error);
+        res.status(500).json({ error: 'failed to check user', detail: error.message})
+    }
+})
+
+app.post ('/checkUseByPhone', async (req, res) => {
+    const { phone } = req.body;
+    if(!phone) {
+        return res.status(400).json({error: 'Phone is required'});
+    }
+    try {
+        const userDoc = await db.collection('users').doc(phone).get();
+
+        if(userDoc.exists){
+            return res.json({ exists: false, userType: null})
+        };
+        const userData = userDoc.data();
+
+        res.json({
+            exists: true,
+            userType: userData.role,
+
+        });
+    } catch (error){
+        console.error('Error checking user by phone: ', error);
+        res.status(500).json({ error: 'failed to check user', detail: error.message})
+    }
+})
+
+
 //Instructor
 app.post('/addStudent', async (req, res) => {
     try {
@@ -246,7 +297,7 @@ app.post('/addStudent', async (req, res) => {
         if (!email || !name || !phone) {
             return res.status(400).json({ error: 'Name, email, and phone are required' });
         }
-
+        
     const inviteToken = uuidv4();
     const inviteExpires = Date.now() + 24 * 60 * 60 * 1000;
     await db.collection('invitations').doc(inviteToken).set({
