@@ -1,43 +1,60 @@
 import { useEffect, useState } from "react";
-import {ArrowLeft, User, Phone } from 'lucide-react'
-import {api } from '../api';
+import {ArrowLeft, User, Phone, Lock } from 'lucide-react'
+import {api } from '../../api';
+import { useNavigate,useSearchParams } from "react-router-dom";
 
 export default function SetupAccount({ onSetupSuccess }) {
+    const [searchParams] = useSearchParams();
+    const token = searchParams.get('token');
+    const navigate = useNavigate();
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(true);
-    const [token, setToken] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleBack = () => navigate(-1);
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const t = params.get('token');
-        if (t) {
-            setToken(t);
-            api.validateInvitation(t)
-                .then(res => {
-                    if (resizeBy.success){
-                        setEmail(resizeBy.email || '');
-                        setName(resizeBy.name || '');
-                    }else{
-                        setError(res.error || 'Invalid invitation token.');
-                    }
-                })
-                .catch(() => { setError('Failed to validate invitation token.')})
-                    .finally(() => setLoading(false));
-        }else {
-            setError('No invitation token provided.');
+        if (!token) {
+            setError('Invalid or missing token.');
             setLoading(false);
+            return;
         }
-    }, []);
+
+        const fetchInvitation = async () => {
+            try{
+                const res = await api.validateInvitation(token);
+                if (res.error) {
+                    setError(res.error);
+                } else {
+                    setEmail(res.email);
+                    setName(res.name || '');
+                }
+            } catch (error) {
+                console.error('Error validating invitation token:', error);
+                setError('Failed to validate invitation token.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchInvitation();
+    }, [token]);
+
+    const isFormValid = password.trim().length >= 6 && phone.trim().length > 0;
 
     const handleSubmit = async () => {
         setSubmitting(true);
         setError('');
         try {
-            const res = await api.setupAccount({ token, name, phone });
+            const res = await api.setupAccount(
+                name,
+                phone,
+                email,
+                password
+            );
             if (res.success) {
                 onSetupSuccess({
                     email: res.email || email,
@@ -47,27 +64,21 @@ export default function SetupAccount({ onSetupSuccess }) {
             } else {
                 setError(res.error || 'Failed to set up account.');
             }
-        } catch(err) {
-            console.error('Error setting up account:', err);
+        } catch(error) {
+            console.error('Error setting up account:', error);
             setError('Failed to set up account.');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleBack = () => {
-        window.history.back();
-    };
-
-    const isFormValid = name.trim() !== '' && phone.trim() !== '';
-
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center text-gray-600">
-                Loading...</div>
-        );
+            <div className="flex items-center justify-center min-h-screen text-gray-600">
+                <p>Loading...</p>
+            </div>
+        )
     }
-
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
@@ -83,8 +94,8 @@ export default function SetupAccount({ onSetupSuccess }) {
                         Set Up Your Account
                     </h1>
                     <p className="text-center text-gray-600 mb-8">
-                        we've invited you with <span className="font-medium">{email}</span>
-                        please confirm your details below
+                        we've invited you<span className="font-medium"> {email} </span> 
+                        please fill in your details below
                     </p>
 
                     <div className="space-y-6">
@@ -110,6 +121,17 @@ export default function SetupAccount({ onSetupSuccess }) {
                             />
                         </div>
 
+                        <div className="flex items-center border border-gray-300 rounded-lg px-4">
+                            <Lock className="w-5 h-5 text-gray-400 mr-3"/>
+                            <input
+                                type="password"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full py-3 outline-none text-gray-900 placeholder-gray-400"
+                            />
+                        </div>
+
                         {error && (
                             <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg">
                                 {error}
@@ -120,7 +142,7 @@ export default function SetupAccount({ onSetupSuccess }) {
                             onClick={handleSubmit}
                             disabled={!isFormValid || submitting}
                             className={`w-full py-3 px-4 rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 outline-none 
-                            ${(isFormValid && !submitting) 
+                            ${(submitting&& !isFormValid ) 
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                              : 'bg-blue-600 hover:bg-blue-700 text-white'
                             }`}

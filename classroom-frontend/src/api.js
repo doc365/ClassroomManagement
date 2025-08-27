@@ -53,17 +53,17 @@ export const api = {
         },
 
     getMyLessons: async (phone) => {
-        const response = await fetch(`${API_BASE}/myLesson?phone=${phone}`);
+        const response = await fetch(`${API_BASE}/myLessons?phone=${phone}`);
         return response.json();
     },
 
-    MarkLessonDone: async (lessonId) => {
+    markLessonDone: async (phone, lessonId) => {
         const response = await fetch(`${API_BASE}/markLessonDone`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ lessonId })
+            body: JSON.stringify({ phone, lessonId })
         });
         return response.json();
     },
@@ -80,17 +80,94 @@ export const api = {
     },
 
     validateInvitation: async (token) => {
-        const response = await fetch(`${API_BASE}/validateInvitation/${token}`);
-        return response.json();
-    },
-
-    setupAccount: async (token, userData) => {
-        const response = await fetch(`${API_BASE}/setupAccount/${token}`, {
+        const res = await fetch(`${API_BASE}/validateInvitation`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(userData)
+            body: JSON.stringify({ token })
+        });
+        return res.json();
+    },
+
+    setupAccount: async (phone, name, email, password) => {
+        const response = await fetch(`${API_BASE}/setupAccount`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone, name, email, password })
+        });
+        return response.json();
+    },
+
+    createAccessCode: async (phone) => {
+        const response = await fetch(`${API_BASE}/createAccessCode`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone })
+        });
+        return response.json();
+    },
+
+    validateAccessCode: async (phone, code) => {
+        const response = await fetch(`${API_BASE}/validateAccessCode`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone, accessCode: code })
+        });
+        return response.json();
+    },
+
+    loginEmail: async (email) => {
+        const response = await fetch(`${API_BASE}/loginEmail`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email })
+        });
+        return response.json();
+    },
+
+    validateEmailCode: async (email, accessCode) => {
+        const response = await fetch(`${API_BASE}/validateEmailCode`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, accessCode })
+        });
+        return response.json();
+    },
+
+    getMessages: async (user1, user2) => {
+        const response = await fetch(`${API_BASE}/messages?user1=${user1}&user2=${user2}`);
+        return response.json();
+    },
+
+    markAsRead: async (messageIds) => {
+        const response = await fetch(`${API_BASE}/messages/markAsRead`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ messageIds })
+        });
+        return response.json();
+    },
+
+    loginStudent: async (phone, password) => {
+        const response = await fetch(`${API_BASE}/loginStudent`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone, password })
         });
         return response.json();
     }

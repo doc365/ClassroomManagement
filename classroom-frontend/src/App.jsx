@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Dashboard from "./Components/instructor/Dashboard";
 import LogInForm from "./Components/auth/LogInForm";
 import { Bell, User } from "lucide-react";
+import SetupAccount from "./Components/auth/SetupAccount";
+import {BrowserRouter as Router, Route, Routes, Navigate} from "react-router-dom";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,6 +36,7 @@ function App() {
     setUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('userPhone');
+    localStorage.removeItem('userEmail');
     console.log('User signed out');
   };
 
@@ -44,16 +47,16 @@ function App() {
     setShowEditProfile(false);
   };
 
-  if (!isAuthenticated) {
-    return <LogInForm onSignInSuccess={handleSignInSuccess} />;
-  }
-
   return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
-          <div className="flex justify-between items-center p-4">
-            <h1 className="text-2xl font-bold text-gray-800">Instructor Dashboard</h1>
-            <div className="flex items-center gap-4">
+    <Router>
+      <Routes>
+        <Route path="/" element={
+          isAuthenticated ? (
+            <div className="min-h-screen bg-gray-50">
+              <header className="bg-white shadow-sm border-b">
+                <div className="flex justify-between items-center p-4">
+                  <h1 className="text-2xl font-bold text-gray-800">Instructor Dashboard</h1>
+                  <div className="flex items-center gap-4">
               <Bell className="w-6 h-6 text-gray-500" />
               <div className="relative">
                 <User
@@ -128,7 +131,18 @@ function App() {
         </div>
       )}
       </div>
-  );
+  ) : (
+    <LogInForm onSignInSuccess={handleSignInSuccess} />
+    )
+  }
+  />
+
+  <Route path="/setupAccount" element={<SetupAccount />} />
+  <Route path="*" element={<Navigate to="/" />} />
+</Routes>
+</Router>
+  )
 }
+
 
 export default App;

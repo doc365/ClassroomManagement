@@ -7,10 +7,11 @@ const nodemailer = require('nodemailer');
 const {Server} = require('socket.io');
 const http = require('http');
 const serviceAccount = require('./serviceAccountKey.json');
-const { v4: uuidv4 } = require('uuid')
-
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 const twilioPhone = process.env.TWILIO_PHONE;
+
 
 
 admin.initializeApp({
@@ -32,14 +33,22 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: '*',
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        
     }
 });
 
-app.use(cors());
+const corsOptions = {
+    origin: '*',
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use (express.json())
 app.use (express.urlencoded({extended: true}))
-
 
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -91,6 +100,7 @@ app.post('/validateAccessCode', async (req, res) => {
         await db.collection('AccessCodes').doc(phone).delete();
 
         const userDoc = await db.collection('users').doc(phone).get();
+
         let userType = 'student';
         if (userDoc.exists) {
             userType = userDoc.data().role;
@@ -110,29 +120,97 @@ app.post('/validateAccessCode', async (req, res) => {
     }
 });
 
+app.post('/loginEmail', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const code = generateCode();
+    try {
+        await db.collection('emailAccessCodes').doc(email).set({ 
+            code, 
+            createdAt: Date.now(),
+            expires: Date.now() + 5 * 60 * 1000
+        });
+
+        await transporter.sendMail({
+            from: '"Classroom Management" <' + process.env.EMAIL_USER + '>',
+            to: email,
+        subject: 'Your Classroom Access Code',
+        text: `Your access code is: ${code}`
+    });
+        res.json({ success: true });
+    
+    } catch (error) {
+        console.error('Error sending email:', error);
+        res.status(500).json({ error: 'Failed to send email', detail: error.message });
+    }
+});
+
 app.post('/validateEmailCode', async (req, res) => {
     const { email, accessCode } = req.body;
 
-    if (!email || !accessCode) {
+    if (!email || !accessCode) {    
         return res.status(400).json({ error: 'Email and access code are required' });
     }
-
-    try{
+    try {
         const doc = await db.collection('emailAccessCodes').doc(email).get();
-
-    if (!doc.exists) {
-        return res.status(404).json({ error: 'Access code not found or invalid' });
-    }
-    const data = doc.data();
-
-    if (data.code !== accessCode || data.expires < Date.now()) {
-        return res.status(400).json({ error: 'Invalid/expired access code' });
-    }
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Access code not found or invalid' });
+        }
+        const data = doc.data();
+        if (data.code !== accessCode || data.expires < Date.now()) {
+            return res.status(400).json({ error: 'Invalid/expired access code' });
+        }
         await db.collection('emailAccessCodes').doc(email).delete();
-        res.json({ success: true });
-    } catch(error){
-    console.error('Error validating email code:', error);
-    res.status(500).json({ error: 'Failed to validate email code', detail: error.message });
+
+        const userQuery = await db.collection('users').where('email', '==', email).get();
+        
+        if(userQuery.empty){
+            const newUserRef = db.collection('users').doc();
+            await newUserRef.set({
+                email,
+                role: 'instructor',
+                createdAt: Date.now()
+            });
+
+            return res.json({
+                success: true,
+                userType: 'instructor',
+                email,
+                name: null,
+                phone: newUserRef.id,
+                newUser: true,
+                nextStep: 'dashboard'
+            });
+        }
+
+        const userDoc = userQuery.docs[0];
+        const userData = userDoc.data();
+
+        if (userData.role === 'student' && !userData.passwordHash){
+            return res.json({
+                success: true,
+                userType: 'student',
+                email,
+                name: null,
+                phone: userDoc.id,
+                nextStep: 'setupAccount'
+            });
+        }
+
+        res.json({
+            success: true,
+            userType: userData.role,
+            email,
+            name: userData.name || null,
+            phone: userDoc.id,
+            nextStep: userData.role === 'student' ? 'passwordLogin' : 'dashboard'
+        });
+    } catch (error) {
+        console.error('Error validating email code:', error);
+        res.status(500).json({ error: 'Failed to validate email code', detail: error.message });
     }
 });
 
@@ -149,8 +227,12 @@ app.post('/validateInvitation', async (req, res) => {
         if (inviteData.expiresAt < Date.now()) {
             return res.status(403).json({ error: 'Invitation has expired' });
         }
-        await db.collection('invitations').doc(token).delete();
-        res.json({ success: true, message: 'Invitation validated and user created successfully' });
+        res.json({
+            success: true,
+            email: inviteData.email,
+            name: inviteData.name || ''
+        });
+
     } catch (error) {
         console.error('Error validating invitation:', error);
         res.status(500).json({ error: 'Failed to validate invitation', detail: error.message });
@@ -159,11 +241,11 @@ app.post('/validateInvitation', async (req, res) => {
 
 //Instructor
 app.post('/addStudent', async (req, res) => {
-    try{
-    const { name, email } = req.body;
-    if (!email || !name) {
-        return res.status(400).json({ error: 'Name, email are required' });
-    }
+    try {
+        const { name, email, phone } = req.body;
+        if (!email || !name || !phone) {
+            return res.status(400).json({ error: 'Name, email, and phone are required' });
+        }
 
     const inviteToken = uuidv4();
     const inviteExpires = Date.now() + 24 * 60 * 60 * 1000;
@@ -311,71 +393,54 @@ app.get('/lessons/:phone', async (req, res) => {
 
 //student
 app.post('/setupAccount', async (req, res) => {
-    try{
-        const {token, phone, name}  = req.body;
+    try {
+        const { phone, name, email, password } = req.body;
 
-        if (!token || !phone || !name) {
-            return res.status(400).json({ error: 'Token, phone number, and name are required' });
-        }
-    const inviteDoc = await db.collection('invitations').doc(token).get();
+        if (!password) return res.status(400).json({ error: 'Password is required' });
+        if (!phone || !email) return res.status(400).json({ error: 'Phone and email are required' });
 
-    if (!inviteDoc.exists) {
-        return res.status(404).json({ error: 'Invitation not found' });
-    }
+        const passwordHash = await bcrypt.hash(password, 10);
 
-    const inviteData = inviteDoc.data();
-    if (inviteData.expiresAt < Date.now()) {
-        return res.status(403).json({ error: 'Invitation has expired' });
-    }
-
-    await db.collection('students').doc(phone).set({
-            name,
-            email: inviteData.email,
+        await db.collection('students').doc(phone).set({
+            name: name || '',
+            email: email || '',
             createdAt: Date.now(),
-            assignedLessons: []
+            passwordHash,
         });
 
-    await db.collection('users').doc(phone).set({
-        name,
-        email: inviteData.email,
-        createdAt: Date.now()
-    });
-    
-    await db.collection('invitations').doc(token).delete();
+        await db.collection('users').doc(phone).set({
+            role: 'student',
+            name: name || '',
+            email: email || '',
+            createdAt: Date.now(),
+            passwordHash
+        });
 
-    res.json({ success: true, message: 'Account setup successfully' });
-} catch (error) {
-    console.error('Error setting up account:', error);
-    res.status(500).json({ error: 'Failed to set up account', detail: error.message });
-}
+        res.json({ success: true, message: 'Account setup successfully' });
+    } catch (error) {
+        console.error('Error setting up account:', error);
+        res.status(500).json({ error: 'Failed to set up account', detail: error.message });
+    }
 });
 
-app.post('/loginEmail', async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
+app.post('/loginStudent', async (req, res) => {
+    try{
+        const {phone, password} = req.body;
 
-    const code = generateCode();
-    const token = uuidv4();
-    try {
-        await db.collection('emailAccessCodes').doc(email).set({ 
-            code, 
-            createdAt: Date.now(),
-            expires: Date.now() + 5 * 60 * 1000
-        });
+        const studentDoc = await db.collection('students').doc(phone).get();
+        if(!studentDoc.exists){
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        const student = studentDoc.data();
+        const match = await bcrypt.compare(password, student.passwordHash);
+        if(!match){
+            return res.status(401).json({ error: 'Invalid password' });
+        }
 
-        await transporter.sendMail({
-            from: '"Classroom Management" <' + process.env.EMAIL_USER + '>',
-            to: email,
-        subject: 'Your Classroom Access Code',
-        text: `Your access code is: ${code}`
-    });
-        res.json({ success: true });
-    
+        res.json({ success: true, message: 'Login successful' });
     } catch (error) {
-        console.error('Error sending email:', error);
-        res.status(500).json({ error: 'Failed to send email', detail: error.message });
+        console.error('Error logging in student:', error);
+        res.status(500).json({ error: 'Failed to log in student', detail: error.message });
     }
 });
 
@@ -576,7 +641,7 @@ io.on('connection', (socket) => {
 
 app.get('/chatHistory/:email', async (req, res) => {
     try {
-        const [email] = req.params;
+        const {email} = req.params;
 
         const snapshot = await db.collection('chats')
         .where('from', '==', email)
@@ -589,6 +654,7 @@ app.get('/chatHistory/:email', async (req, res) => {
             const otherUser = data.to;
             if (!conversations[otherUser]) {
                 conversations[otherUser] = [];
+                conversations[otherUser].push({id: doc.id, ...data})
             }
         });
         res.json({ success: true, conversations });
@@ -599,6 +665,14 @@ app.get('/chatHistory/:email', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+const path = require('path');
+
+app.use (express.static(path.join(__dirname, 'build')));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
+
 server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
