@@ -6,7 +6,7 @@ import SetupAccount from "./Components/auth/SetupAccount";
 import {BrowserRouter as Router, Route, Routes, Navigate} from "react-router-dom";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [user, setUser] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
