@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {Plus, X} from 'lucide-react';
-import { api } from '../../api';
+import { api } from '../../axios';
 
 export default function AddStudentForm({onStudentAdded, onClose}) {
     const [formData, setFormData] = useState({

@@ -137,7 +137,7 @@ function App() {
   }
   />
 
-  <Route path="/setupAccount" element={<SetupAccount />} />
+  <Route path="/setup-account" element={<SetupAccount />} />
   <Route path="*" element={<Navigate to="/" />} />
 </Routes>
 </Router>

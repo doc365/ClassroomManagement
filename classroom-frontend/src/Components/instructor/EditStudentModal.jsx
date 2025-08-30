@@ -1,6 +1,6 @@
 import React, {useState}from "react";
 import { X } from "lucide-react";
-import { api } from "../../api";
+import { api } from "../../axios";
 
 export default function EditStudentModal({ student, onSave, onClose }) {
     const [formData, setFormData] = useState({

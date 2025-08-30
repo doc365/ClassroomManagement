@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { api } from "../../api";
+import { api } from "../../axios";
 
 export default function AssignLessonModal({ students, onAssign, onClose }) {
     const [formData, setFormData] = useState({

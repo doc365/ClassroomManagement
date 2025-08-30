@@ -75,6 +75,35 @@ router.post("/validateEmailCode", async (req, res) => {
   res.json({ success: true, type });
 });
 
+router.get("/validateInvitation", async (req, res) => {
+  const { token } = req.query;
+  try {
+    const snapshot = await db.collection("students")
+      .where("setupToken", "==", token)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(400).json({ error: "Invalid or expired token" });
+    }
+
+    const student = snapshot.docs[0].data();
+    
+    if (student.setupTokenExpires < Date.now()) {
+      return res.status(400).json({ error: "Token has expired" });
+    }
+
+    res.json({ 
+      email: student.email, 
+      name: student.name,
+      phone: student.phone 
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.post("/setupAccount", async (req, res) => {
   try {
     const { token, username, password } = req.body;
