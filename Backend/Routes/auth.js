@@ -5,6 +5,8 @@ const twilio = require("twilio");
 const nodemailer = require("nodemailer");
 const db = admin.firestore();
 const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 
 router.post("/createAccessCode", async (req, res) => {
@@ -68,7 +70,82 @@ router.post("/validateEmailCode", async (req, res) => {
   }
 
   await db.collection("accessCodes").doc(email).set({ code: "" });
-  res.json({ success: true });
+  const student = await db.collection("students").doc(email).get();
+  const type = student.exists ? "student" : "instructor";
+  res.json({ success: true, type });
+});
+
+router.post("/setupAccount", async (req, res) => {
+  try {
+    const { token, username, password } = req.body;
+    if (!token || !username || !password) {
+      return res.status(400).json({ success: false, message: "Missing fields" });
+    }
+
+    const snapshot = await db.collection("students")
+      .where("setupToken", "==", token)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(400).json({ success: false, message: "Invalid token" });
+    }
+
+    const doc = snapshot.docs[0];
+    const studentRef = db.collection("students").doc(doc.id);
+    const student = doc.data();
+
+    if (student.setupTokenExpires < Date.now()) {
+      return res.status(400).json({ success: false, message: "Token expired" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await studentRef.update({
+      username,
+      password: hash,
+      setupToken: admin.firestore.FieldValue.delete(),
+      setupTokenExpires: admin.firestore.FieldValue.delete()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error setting up account:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const snapshot = await db.collection("students")
+      .where("username", "==", username)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(400).json({ success: false, message: "User not found" });
+    }
+
+    const student = snapshot.docs[0].data();
+    const match = await bcrypt.compare(password, student.password);
+
+    if (!match) {
+      return res.status(400).json({ success: false, message: "Invalid password" });
+    }
+
+    const token = jwt.sign(
+      { phone: student.phone, role: "student" },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({ success: true, token });
+  } catch (err) {
+    console.error("Error logging in:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 module.exports = router;
