@@ -11,7 +11,6 @@ function App() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
 
-
   useEffect(() => {
     const savedPhone = localStorage.getItem('userPhone');
     const savedEmail = localStorage.getItem('userEmail');
@@ -30,6 +29,10 @@ function App() {
       localStorage.setItem('userPhone', userData.phone);
     }
     console.log('User signed in:', userData);
+  };
+
+  const handleSetupSuccess = (userData) => {
+    console.log('Account setup completed for:', userData);
   };
 
   const handleSignOut = () => {
@@ -57,92 +60,96 @@ function App() {
                 <div className="flex justify-between items-center p-4">
                   <h1 className="text-2xl font-bold text-gray-800">Instructor Dashboard</h1>
                   <div className="flex items-center gap-4">
-              <Bell className="w-6 h-6 text-gray-500" />
-              <div className="relative">
-                <User
-                  className="w-8 h-8 text-gray-500 bg-gray-200 rounded-full p-1"
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-              />
+                    <Bell className="w-6 h-6 text-gray-500" />
+                    <div className="relative">
+                      <User
+                        className="w-8 h-8 text-gray-500 bg-gray-200 rounded-full p-1 cursor-pointer"
+                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                      />
 
-              {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg">
-                  <button
-                    onClick={() => {
-                  setShowEditProfile(true);
-                  setShowProfileMenu(false);
-                }}
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                >
-                  Edit Profile
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-              >
-                Sign Out
-              </button>
+                      {showProfileMenu && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg">
+                          <button
+                            onClick={() => {
+                              setShowEditProfile(true);
+                              setShowProfileMenu(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                          >
+                            Edit Profile
+                          </button>
+                          <button
+                            onClick={handleSignOut}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            Sign Out
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </header>
+              <main>
+                <Dashboard />
+              </main>
+
+              {showEditProfile && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white p-6 rounded-lg w-96 shadow-lg">
+                    <h2 className="text-lg font-bold mb-4">Edit Profile</h2>
+                    <div className="space-y-3">
+                      <input 
+                        type="text"
+                        value={user?.name || ''}
+                        onChange={(e) => setUser({ ...user, name: e.target.value })}
+                        placeholder="Full Name" 
+                        className="w-full border rounded p-2"
+                      />
+                      <input 
+                        type="email"
+                        value={user?.email || ''}
+                        onChange={(e) => setUser({ ...user, email: e.target.value })}
+                        placeholder="Email"
+                        className="w-full border rounded p-2"
+                      />
+                      <input 
+                        type="text"
+                        value={user?.phone || ''}
+                        onChange={(e) => setUser({ ...user, phone: e.target.value })}
+                        placeholder="Phone"
+                        className="w-full border rounded p-2"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <button
+                        onClick={() => setShowEditProfile(false)}
+                        className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveProfile(user)}
+                        className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-      </div>
-      </header>
-      <main>
-        <Dashboard />
-      </main>
+          ) : (
+            <LogInForm onSignInSuccess={handleSignInSuccess} />
+          )
+        } />
 
-      {showEditProfile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-96 shadow-lg">
-            <h2 className="text-lg font-bold mb-4">Edit Profile</h2>
-              <div className="space-y-3">
-                <input type="text"
-                value = {user?.name || ''}
-                onChange={(e) => setUser({ ...user, name: e.target.value })}
-                placeholder="Full Name" 
-                className="w-full border rounded p-2"
-                />
-                <input type="email"
-                value = {user?.email || ''}
-                onChange={(e) => setUser({ ...user, email: e.target.value })}
-                placeholder="Email"
-                className="w-full border rounded p-2"
-                />
-                <input type="text"
-                value = {user?.phone || ''}
-                onChange={(e) => setUser({ ...user, phone: e.target.value })}
-                placeholder="Phone"
-                className="w-full border rounded p-2"
-                />
-              </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <button
-                onClick={() =>  setShowEditProfile(false)}
-                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300">
-                  Cancel
-                </button>
-                <button
-                onClick={() => {handleSaveProfile(user)}}
-                className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white">
-                  Save
-                </button>
-              </div>
-          </div>
-        </div>
-      )}
-      </div>
-  ) : (
-    <LogInForm onSignInSuccess={handleSignInSuccess} />
-    )
-  }
-  />
-
-  <Route path="/setup-account" element={<SetupAccount />} />
-  <Route path="*" element={<Navigate to="/" />} />
-</Routes>
-</Router>
-  )
+        {/* 🔧 FIX: Pass the onSetupSuccess prop */}
+        <Route path="/setup-account" element={<SetupAccount onSetupSuccess={handleSetupSuccess} />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Router>
+  );
 }
-
 
 export default App;

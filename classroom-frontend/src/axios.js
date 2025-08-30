@@ -29,7 +29,7 @@ export const api = {
     return res.data;
   },
 
-  ValidateInvitation: async (token) => {
+  validateInvitation: async (token) => {
   const res = await client.get(`/auth/validateInvitation?token=${token}`);
   return res.data;
   },

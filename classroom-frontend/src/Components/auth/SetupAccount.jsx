@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, User, Phone, Lock } from "lucide-react";
-import { api } from "../../axios"; // 🔧 FIX: Import api instead of axios
+import { api } from "../../axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 export default function SetupAccount({ onSetupSuccess }) {
@@ -28,22 +28,29 @@ export default function SetupAccount({ onSetupSuccess }) {
 
     const fetchInvitation = async () => {
       try {
-        // 🔧 FIX: Use api.ValidateInvitation method
-        const res = await api.ValidateInvitation(token);
+        // 🔧 FIX: Use lowercase 'v' to match your axios API
+        const res = await api.validateInvitation(token);
         
         console.log('Validation response:', res);
         
+        // Backend returns { error: "message" } for errors
+        // and { email, name, phone } for success
         if (res.error) {
           setError(res.error);
         } else {
-          setEmail(res.email);
+          setEmail(res.email || "");
           setName(res.name || "");
           setPhone(res.phone || "");
         }
       } catch (error) {
         console.error("Error validating invitation token:", error);
-        if (error.response && error.response.data && error.response.data.error) {
+        
+        // Handle axios error structure properly
+        if (error.response?.data?.error) {
           setError(error.response.data.error);
+        } else if (error.error) {
+          // If your improved axios client throws error.response.data
+          setError(error.error);
         } else {
           setError("Failed to validate invitation token.");
         }
@@ -58,13 +65,15 @@ export default function SetupAccount({ onSetupSuccess }) {
   const isFormValid = password.trim().length >= 6 && username.trim().length > 0;
 
   const handleSubmit = async () => {
+    if (!isFormValid) return;
+    
     setSubmitting(true);
     setError("");
+    
     try {
-      // 🔧 FIX: Use api.setupAccount method
       const res = await api.setupAccount({
         token: token,
-        username: username,
+        username: username.trim(),
         password: password
       });
 
@@ -81,8 +90,13 @@ export default function SetupAccount({ onSetupSuccess }) {
       }
     } catch (error) {
       console.error("Error setting up account:", error);
-      if (error.response && error.response.data && error.response.data.message) {
+      
+      // Handle axios error structure properly
+      if (error.response?.data?.message) {
         setError(error.response.data.message);
+      } else if (error.message) {
+        // If your improved axios client throws error.response.data
+        setError(error.message);
       } else {
         setError("Failed to set up account.");
       }
@@ -118,8 +132,8 @@ export default function SetupAccount({ onSetupSuccess }) {
             Set Up Your Account
           </h1>
           <p className="text-center text-gray-600 mb-8">
-            we&apos;ve invited you
-            <span className="font-medium"> {email} </span>
+            We&apos;ve invited you{" "}
+            <span className="font-medium">{email}</span>{" "}
             please fill in your details below
           </p>
 
