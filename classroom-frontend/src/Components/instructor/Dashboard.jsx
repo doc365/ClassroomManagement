@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Book, Users, MessageCircle, Search } from "lucide-react";
 import { api } from "../../axios";
 import AddStudentForm from "./AddStudentForm";
+import ManageLessonsPage from "./ManageLesson";
 import EditStudentModal from "./EditStudentModal";
 import AssignLessonModal from "./AssignLessonModal";
 import StudentDetailsModal from "./StudentDetailsModal";
@@ -49,13 +50,41 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch fresh student data when viewing lessons
   const handleViewStudentLessons = async (student) => {
     try {
-      const response = await api.getStudent(student.phone);
-      // assuming response = { student: {...}, lessons: [...] }
-      setStudentDetails(response);
+      // Get fresh student data with latest lesson statuses
+      const response = await api.getMyLessons(student.phone);
+      setStudentDetails({
+        student: {
+          ...student,
+          lessons: response.lessons || []
+        }
+      });
     } catch (error) {
-      alert("An error occurred: " + error.message);
+      console.error("Error fetching student lessons:", error);
+      alert("Error loading student lessons");
+    }
+  };
+
+  // Function to refresh specific student data
+  const refreshStudentData = async (studentPhone) => {
+    try {
+      const response = await api.getMyLessons(studentPhone);
+      const updatedStudent = {
+        ...studentDetails.student,
+        lessons: response.lessons || []
+      };
+      
+      // Update the modal with fresh data
+      setStudentDetails({
+        student: updatedStudent
+      });
+      
+      return updatedStudent;
+    } catch (error) {
+      console.error("Error refreshing student data:", error);
+      throw error;
     }
   };
 
@@ -184,22 +213,7 @@ export default function Dashboard() {
     }
 
     if (activeTab === "lessons") {
-      return (
-        <div className="flex-1 p-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-8">Manage Lessons</h1>
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <Book className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Create and manage lessons for your students.</p>
-            <button
-              onClick={() => setShowAssignLesson(true)}
-              className="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center gap-2 mx-auto"
-            >
-              <Book size={20} />
-              Assign Lesson
-            </button>
-          </div>
-        </div>
-      );
+      return <ManageLessonsPage students={students} onAssignLesson={() => setShowAssignLesson(true)} />;
     }
 
     if (activeTab === "messages") {
@@ -271,8 +285,8 @@ export default function Dashboard() {
       {studentDetails && (
         <StudentDetailsModal
           student={studentDetails.student}
-          lessons={studentDetails.lessons}
           onClose={() => setStudentDetails(null)}
+          onRefreshStudent={refreshStudentData}
         />
       )}
     </div>

@@ -54,14 +54,36 @@ router.post("/addStudent", async (req, res) => {
 });
 
 router.post("/assignLesson", async (req, res) => {
-  const { studentPhone, title, description } = req.body;
-  const lesson = { id: Date.now().toString(), title, description, done: false };
+  try {
+    const { studentPhone, title, description, dueDate } = req.body;
+    
+    console.log('Assigning lesson:', { studentPhone, title, description });
+    
+    // Create lesson with consistent field names  
+    const lesson = {
+      id: Date.now().toString(),
+      lessonId: Date.now().toString(),
+      title: title.trim(),
+      description: description?.trim() || "",
+      completed: false, // Changed from 'done' to 'completed'
+      assignedDate: admin.firestore.Timestamp.now(),
+      dueDate: dueDate ? admin.firestore.Timestamp.fromDate(new Date(dueDate)) : null,
+      assignedBy: "instructor"
+    };
 
-  await db.collection("students").doc(studentPhone).update({
-    lessons: admin.firestore.FieldValue.arrayUnion(lesson),
-  });
+    // Add lesson to student's lessons array
+    await db.collection("students").doc(studentPhone).update({
+      lessons: admin.firestore.FieldValue.arrayUnion(lesson)
+    });
 
-  res.json({ success: true });
+    console.log('Lesson assigned successfully to:', studentPhone);
+
+    res.json({ success: true, lesson });
+
+  } catch (err) {
+    console.error("Error assigning lesson:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
 });
 
 router.get("/students", async (req, res) => {
