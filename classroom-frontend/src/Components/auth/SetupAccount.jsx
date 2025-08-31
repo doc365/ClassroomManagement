@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, User, Phone, Lock } from "lucide-react";
 import { api } from "../../axios";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 export default function SetupAccount({ onSetupSuccess }) {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
-  const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -17,7 +16,9 @@ export default function SetupAccount({ onSetupSuccess }) {
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleBack = () => navigate(-1);
+  const handleBack = () => {
+    window.history.back();
+  };
 
   useEffect(() => {
     if (!token) {
@@ -28,13 +29,10 @@ export default function SetupAccount({ onSetupSuccess }) {
 
     const fetchInvitation = async () => {
       try {
-        // 🔧 FIX: Use lowercase 'v' to match your axios API
         const res = await api.validateInvitation(token);
         
         console.log('Validation response:', res);
         
-        // Backend returns { error: "message" } for errors
-        // and { email, name, phone } for success
         if (res.error) {
           setError(res.error);
         } else {
@@ -45,11 +43,9 @@ export default function SetupAccount({ onSetupSuccess }) {
       } catch (error) {
         console.error("Error validating invitation token:", error);
         
-        // Handle axios error structure properly
         if (error.response?.data?.error) {
           setError(error.response.data.error);
         } else if (error.error) {
-          // If your improved axios client throws error.response.data
           setError(error.error);
         } else {
           setError("Failed to validate invitation token.");
@@ -78,25 +74,29 @@ export default function SetupAccount({ onSetupSuccess }) {
       });
 
       if (res.success) {
-        onSetupSuccess({
+        // Automatically log the user in after successful setup
+        const userData = {
           email: email,
           name: name,
           phone: phone,
-        });
-        alert('Account setup successful! You can now login.');
-        navigate('/login');
+          username: username.trim(),
+          userType: 'student'
+        };
+        
+        // Call the success handler to navigate to student dashboard
+        onSetupSuccess(userData);
       } else {
-        setError(res.message || "Failed to set up account.");
+        setError(res.error || "Failed to set up account.");
       }
     } catch (error) {
       console.error("Error setting up account:", error);
       
-      // Handle axios error structure properly
-      if (error.response?.data?.message) {
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+      } else if (error.response?.data?.message) {
         setError(error.response.data.message);
-      } else if (error.message) {
-        // If your improved axios client throws error.response.data
-        setError(error.message);
+      } else if (error.error) {
+        setError(error.error);
       } else {
         setError("Failed to set up account.");
       }
@@ -132,7 +132,7 @@ export default function SetupAccount({ onSetupSuccess }) {
             Set Up Your Account
           </h1>
           <p className="text-center text-gray-600 mb-8">
-            We&apos;ve invited you{" "}
+            We've invited you{" "}
             <span className="font-medium">{email}</span>{" "}
             please fill in your details below
           </p>

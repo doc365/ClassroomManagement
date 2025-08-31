@@ -21,7 +21,7 @@ export const api = {
 
   loginEmail: async (email) => {
     const res = await client.post('/auth/loginEmail', { email });
-    return res.data;
+    return res.data;  
   },
 
   validateEmailCode: async (email, accessCode) => {
@@ -29,11 +29,26 @@ export const api = {
     return res.data;
   },
 
-  validateInvitation: async (token) => {
-  const res = await client.get(`/auth/validateInvitation?token=${token}`);
-  return res.data;
+  // NEW: Check user type
+  checkUserType: async (email, phoneNumber) => {
+    const payload = email ? { email } : { phoneNumber };
+    const res = await client.post('/auth/checkUserType', payload);
+    return res.data;
   },
 
+  // NEW: Password login for students
+  loginPassword: async (email, phoneNumber, password) => {
+    const payload = email 
+      ? { email, password }
+      : { phoneNumber, password };
+    const res = await client.post('/auth/loginPassword', payload);
+    return res.data;
+  },
+
+  validateInvitation: async (token) => {
+    const res = await client.get(`/auth/validateInvitation?token=${token}`);
+    return res.data;
+  },
 
   setupAccount: async (data) => {
     const res = await client.post('/auth/setupAccount', data);
@@ -75,6 +90,7 @@ export const api = {
     const res = await client.post('/instructor/assignLesson', lessonData);
     return res.data;
   },
+
 //student
   getMyLessons: async (phone) => {
     const res = await client.get(`/student/myLessons?phone=${phone}`);

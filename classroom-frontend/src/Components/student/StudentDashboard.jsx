@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Book, User, MessageCircle, CheckCircle, XCircle, Bell, LogOut } from 'lucide-react';
-import { api } from "../../axios"; // Updated import path
+import { api } from "../../axios";
 
-export default function StudentDashboard({ user }) {
+export default function StudentDashboard({ user, onSignOut }) {
   const [lessons, setLessons] = useState([]);
   const [profile, setProfile] = useState(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -12,7 +12,7 @@ export default function StudentDashboard({ user }) {
   useEffect(() => {
     loadLessons();
     loadProfile();
-  }, []);
+  }, [user]);
 
   const loadLessons = async () => {
     setLoading(true);
@@ -36,7 +36,8 @@ export default function StudentDashboard({ user }) {
       setProfile(user || {
         name: localStorage.getItem('userName'),
         email: localStorage.getItem('userEmail'),
-        phone: localStorage.getItem('userPhone')
+        phone: localStorage.getItem('userPhone'),
+        userType: localStorage.getItem('userType')
       });
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -61,8 +62,14 @@ export default function StudentDashboard({ user }) {
   };
 
   const handleSignOut = () => {
-    localStorage.clear();
-    window.location.href = '/login';
+    // Call the parent component's sign out handler instead of direct navigation
+    if (onSignOut) {
+      onSignOut();
+    } else {
+      // Fallback if onSignOut is not provided
+      localStorage.clear();
+      window.location.reload();
+    }
   };
 
   const handleSaveProfile = async (updatedProfile) => {
@@ -194,6 +201,10 @@ export default function StudentDashboard({ user }) {
                   <label className="block text-sm font-medium text-gray-700">Phone</label>
                   <p className="mt-1 text-sm text-gray-900">{profile.phone}</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Role</label>
+                  <p className="mt-1 text-sm text-gray-900 capitalize">{profile.userType}</p>
+                </div>
                 <button
                   onClick={() => setShowEditProfile(true)}
                   className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center gap-2"
@@ -233,20 +244,20 @@ export default function StudentDashboard({ user }) {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg">
+      <div className="w-64 bg-white shadow-lg relative">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
               <User className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h2 className="font-semibold text-gray-900">{profile?.name || 'Student'}</h2>
+              <h2 className="font-semibold text-gray-900">{profile?.name || user?.name || 'Student'}</h2>
               <p className="text-sm text-gray-500">Student Portal</p>
             </div>
           </div>
         </div>
         
-        <nav className="mt-8">
+        <nav className="mt-8 pb-20">
           <div
             onClick={() => setActiveTab('lessons')}
             className={`px-6 py-3 text-sm font-medium cursor-pointer border-r-4 flex items-center gap-3 ${
@@ -282,17 +293,17 @@ export default function StudentDashboard({ user }) {
             <MessageCircle className="w-5 h-5" />
             Messages
           </div>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              Sign Out
-            </button>
-          </div>
         </nav>
+
+        <div className="absolute bottom-4 left-4 right-4">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            Sign Out
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
