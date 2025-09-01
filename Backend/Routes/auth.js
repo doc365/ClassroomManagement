@@ -8,7 +8,6 @@ const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-// Check user type - NEW ROUTE
 router.post("/checkUserType", async (req, res) => {
   try {
     const { email, phoneNumber } = req.body;
@@ -18,19 +17,24 @@ router.post("/checkUserType", async (req, res) => {
       return res.status(400).json({ success: false, error: "Email or phone number required" });
     }
 
-    // Check in students collection first
     let userDoc;
+    
     if (email) {
-      userDoc = await db.collection("students").doc(email).get();
+      const snapshot = await db.collection("students")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+      
+      if (!snapshot.empty) {
+        return res.json({ success: true, userType: "student" });
+      }
     } else {
       userDoc = await db.collection("students").doc(phoneNumber).get();
+      if (userDoc.exists) {
+        return res.json({ success: true, userType: "student" });
+      }
     }
 
-    if (userDoc.exists) {
-      return res.json({ success: true, userType: "student" });
-    }
-
-    // If not found in students collection, default to instructor
     res.json({ success: true, userType: "instructor" });
   } catch (err) {
     console.error("Error checking user type:", err);
@@ -38,7 +42,6 @@ router.post("/checkUserType", async (req, res) => {
   }
 });
 
-// Password login for students - NEW ROUTE
 router.post("/loginPassword", async (req, res) => {
   try {
     const { email, phoneNumber, password } = req.body;
@@ -48,32 +51,40 @@ router.post("/loginPassword", async (req, res) => {
       return res.status(400).json({ success: false, error: "Credentials required" });
     }
 
-    // Only students can use password login
     let studentDoc;
+    let student;
+    
     if (email) {
-      studentDoc = await db.collection("students").doc(email).get();
+      const snapshot = await db.collection("students")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+      
+      if (snapshot.empty) {
+        return res.status(400).json({ success: false, error: "Student account not found" });
+      }
+      
+      studentDoc = snapshot.docs[0];
+      student = studentDoc.data();
     } else {
       studentDoc = await db.collection("students").doc(phoneNumber).get();
+      
+      if (!studentDoc.exists) {
+        return res.status(400).json({ success: false, error: "Student account not found" });
+      }
+      
+      student = studentDoc.data();
     }
 
-    if (!studentDoc.exists) {
-      return res.status(400).json({ success: false, error: "Student account not found" });
-    }
-
-    const student = studentDoc.data();
-    
-    // Check if student has a password set
     if (!student.password) {
       return res.status(400).json({ success: false, error: "Password not set. Please use verification code." });
     }
 
-    // Verify password
     const match = await bcrypt.compare(password, student.password);
     if (!match) {
       return res.status(400).json({ success: false, error: "Invalid password" });
     }
 
-    // Generate JWT token (optional)
     const token = jwt.sign(
       { 
         id: studentDoc.id,
@@ -114,26 +125,32 @@ router.post("/createAccessCode", async (req, res) => {
   res.json({ success: true });
 });
 
+
 router.post("/validateAccessCode", async (req, res) => {
-  const { phoneNumber, accessCode } = req.body;
-  const doc = await db.collection("accessCodes").doc(phoneNumber).get();
+  try {
+    const { phoneNumber, accessCode } = req.body;
+    const doc = await db.collection("accessCodes").doc(phoneNumber).get();
 
-  if (!doc.exists || doc.data().code !== accessCode) {
-    return res.status(400).json({ success: false, error: "Invalid code" });
+    if (!doc.exists || doc.data().code !== accessCode) {
+      return res.status(400).json({ success: false, error: "Invalid code" });
+    }
+
+    await db.collection("accessCodes").doc(phoneNumber).set({ code: "" });
+
+    const student = await db.collection("students").doc(phoneNumber).get();
+    const type = student.exists ? "student" : "instructor";
+
+    res.json({ 
+      success: true, 
+      userType: type,
+      email: student.exists ? student.data().email : null,
+      phone: phoneNumber,
+      name: student.exists ? student.data().name : "Instructor"
+    });
+  } catch (err) {
+    console.error("Error validating access code:", err);
+    res.status(500).json({ success: false, error: "Server error" });
   }
-
-  await db.collection("accessCodes").doc(phoneNumber).set({ code: "" });
-
-  const student = await db.collection("students").doc(phoneNumber).get();
-  const type = student.exists ? "student" : "instructor";
-
-  res.json({ 
-    success: true, 
-    userType: type,
-    email: student.exists ? student.data().email : null,
-    phone: phoneNumber,
-    name: student.exists ? student.data().name : "Instructor"
-  });
 });
 
 router.post("/loginEmail", async (req, res) => {
@@ -158,24 +175,35 @@ router.post("/loginEmail", async (req, res) => {
 });
 
 router.post("/validateEmailCode", async (req, res) => {
-  const { email, accessCode } = req.body;
-  const doc = await db.collection("accessCodes").doc(email).get();
+  try {
+    const { email, accessCode } = req.body;
+    const doc = await db.collection("accessCodes").doc(email).get();
 
-  if (!doc.exists || doc.data().code !== accessCode) {
-    return res.status(400).json({ success: false, error: "Invalid code" });
+    if (!doc.exists || doc.data().code !== accessCode) {
+      return res.status(400).json({ success: false, error: "Invalid code" });
+    }
+
+    await db.collection("accessCodes").doc(email).set({ code: "" });
+
+    const snapshot = await db.collection("students")
+      .where("email", "==", email)
+      .limit(1)
+      .get();
+    
+    const isStudent = !snapshot.empty;
+    const student = isStudent ? snapshot.docs[0].data() : null;
+    
+    res.json({ 
+      success: true, 
+      userType: isStudent ? "student" : "instructor",
+      email: email,
+      phone: isStudent ? student.phone : null,
+      name: isStudent ? student.name : "Instructor"
+    });
+  } catch (err) {
+    console.error("Error validating email code:", err);
+    res.status(500).json({ success: false, error: "Server error" });
   }
-
-  await db.collection("accessCodes").doc(email).set({ code: "" });
-  const student = await db.collection("students").doc(email).get();
-  const type = student.exists ? "student" : "instructor";
-  
-  res.json({ 
-    success: true, 
-    userType: type,
-    email: email, // FIXED: was phoneNumber before
-    phone: student.exists ? student.data().phone : null,
-    name: student.exists ? student.data().name : "Instructor"
-  });
 });
 
 router.get("/validateInvitation", async (req, res) => {
@@ -222,7 +250,6 @@ router.post("/setupAccount", async (req, res) => {
 
     console.log('Setup account request:', { token, username, passwordLength: password.length });
 
-    // Find student by setupToken - search ALL students
     const snapshot = await db.collection("students")
       .where("setupToken", "==", token)
       .limit(1)
@@ -235,7 +262,7 @@ router.post("/setupAccount", async (req, res) => {
 
     const doc = snapshot.docs[0];
     const student = doc.data();
-    const documentId = doc.id; // This is the actual document ID
+    const documentId = doc.id; 
 
     console.log('Found student:', { 
       documentId, 
@@ -243,13 +270,11 @@ router.post("/setupAccount", async (req, res) => {
       hasSetupToken: !!student.setupToken 
     });
 
-    // Check token expiration
     if (student.setupTokenExpires && student.setupTokenExpires < Date.now()) {
       console.log('Token expired:', new Date(student.setupTokenExpires), 'vs now:', new Date());
       return res.status(400).json({ success: false, error: "Token has expired" });
     }
 
-    // Check if username is already taken
     const usernameCheck = await db.collection("students")
       .where("username", "==", username.trim())
       .limit(1)
@@ -259,10 +284,8 @@ router.post("/setupAccount", async (req, res) => {
       return res.status(400).json({ success: false, error: "Username already taken" });
     }
 
-    // Hash password
     const hash = await bcrypt.hash(password, 10);
 
-    // Update using the actual document reference from the query
     await doc.ref.update({
       username: username.trim(),
       password: hash,
