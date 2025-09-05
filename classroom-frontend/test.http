@@ -1,0 +1,78 @@
+### Test /createAccessCode
+POST http://localhost:3000/auth/createAccessCode
+Content-Type: application/json
+
+{
+  "phoneNumber": "+84929858127"
+}
+
+### Test /validateAccessCode (phone)
+POST http://localhost:3000/auth/validateAccessCode
+Content-Type: application/json
+
+{
+  "phoneNumber": "+84929858127",
+  "accessCode": "442664"
+}
+
+### Test /loginEmail
+POST http://localhost:3000/auth/loginEmail
+Content-Type: application/json
+
+{
+  "email": "warth365@gmail.com"
+}
+
+### Test /validateEmailCode
+POST http://localhost:3000/auth/validateEmailCode
+Content-Type: application/json
+
+{
+  "email": "warth365@gmail.com",
+  "accessCode": "944818"
+}
+
+### Test /instructor/addStudent
+POST http://localhost:3000/instructor/addStudent
+Content-Type: application/json
+
+{
+  "name": "Nguyen Huy Loc",
+  "phone": "0929858127",
+  "email": "warth365@gmail.com"
+}
+
+### Test /auth/validateInvitation
+GET http://localhost:3000/auth/validateInvitation?token=18ca9cdac94fa04b03cb081658d1f5dca68395d88f0410c9e080f0eca989dd21
+
+### Test /auth/setupAccount
+POST http://localhost:3000/auth/setupAccount
+Content-Type: application/json
+
+{
+  "token": "18ca9cdac94fa04b03cb081658d1f5dca68395d88f0410c9e080f0eca989dd21",
+  "username": "johndoe",
+  "password": "mypassword123"
+}
+
+### Test /auth/login
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "password": "mypassword123"
+}
+
+### Send a chat message (via REST)
+POST http://localhost:3000/messages/send
+Content-Type: application/json
+
+{
+  "senderId": "warth365@gmail.com",
+  "receiverId": "0909295169",
+  "text": "Hello from HTTP test!"
+}
+
+### Get chat history
+GET http://localhost:3000/messages/warth365@gmail.com/0909295169

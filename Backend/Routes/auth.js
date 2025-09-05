@@ -125,7 +125,6 @@ router.post("/createAccessCode", async (req, res) => {
   res.json({ success: true });
 });
 
-
 router.post("/validateAccessCode", async (req, res) => {
   try {
     const { phoneNumber, accessCode } = req.body;
